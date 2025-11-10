@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AmazingHand 动态控制器</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px 0;
+        }
+
+        .container {
+            background-color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 25px 35px;
+            width: 90%;
+            max-width: 600px;
+        }
+
+        h1 { text-align: center; color: #1a1a1a; margin-top: 0; }
+        #status {
+            text-align: center; font-size: 1.1em; font-weight: bold;
+            margin-bottom: 20px; padding: 10px; border-radius: 5px;
+        }
+        .status-connecting { color: #d97706; background-color: #fefce8; }
+        .status-connected { color: #16a34a; background-color: #f0fdf4; }
+        .status-disconnected { color: #dc2626; background-color: #fef2f2; }
+
+        .control-group { margin-bottom: 25px; }
+        .control-group h2 {
+            border-bottom: 2px solid #e5e7eb; padding-bottom: 5px;
+            margin-bottom: 15px; font-size: 1.25em;
+        }
+        
+        .slider-item {
+            display: grid; grid-template-columns: 100px 1fr 50px;
+            align-items: center; margin-bottom: 10px;
+        }
+        .slider-item label { font-weight: 500; }
+        input[type="range"] { width: 100%; cursor: pointer; }
+        .slider-value { text-align: right; font-family: monospace; font-size: 1.1em; }
+
+        /* --- 按钮样式 --- */
+        .gesture-buttons {
+            display: flex; flex-wrap: wrap; gap: 10px;
+        }
+        
+        /* (静态) 基础按钮 */
+        .gesture-buttons button {
+            flex: 1 1 120px; padding: 10px 12px; font-size: 0.95em;
+            font-weight: 600; color: #374151; background-color: #f3f4f6;
+            border: 1px solid #d1d5db; border-radius: 6px;
+            cursor: pointer; transition: all 0.1s ease-in-out;
+        }
+        .gesture-buttons button:hover { background-color: #e5e7eb; border-color: #9ca3af; }
+        .gesture-buttons button:active { background-color: #d1d5db; transform: scale(0.98); }
+        
+        /* (新) 动态演示按钮 (蓝色) */
+        .gesture-buttons button.dynamic {
+            color: #1d4ed8; /* Blue 700 */
+            background-color: #dbeafe; /* Blue 100 */
+            border-color: #93c5fd; /* Blue 300 */
+        }
+        .gesture-buttons button.dynamic:hover {
+            background-color: #bfdbfe; /* Blue 200 */
+            border-color: #60a5fa; /* Blue 400 */
+        }
+        
+        .button-group {
+            border: 1px solid #e5e7eb; border-radius: 6px;
+            padding: 10px; margin-top: 10px;
+        }
+        .button-group-title {
+            font-size: 0.9em; font-weight: 600;
+            color: #6b7280; margin-bottom: 8px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>AmazingHand 动态控制器</h1>
+        <div id="status" class="status-connecting">正在连接...</div>
+
+        <div class="control-group">
+            <h2>静态姿态</h2>
+            <div class="gesture-buttons">
+                <button id="btn-open">手掌张开 (Open)</button>
+                <button id="btn-fist">握拳 (Fist)</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h2>动态演示 (Demo)</h2>
+            <div class="gesture-buttons">
+                <button id="btn-demo-beckon" class="dynamic">食指勾引</button>
+                <button id="btn-demo-wave" class="dynamic">Peace 挥手</button>
+                <button id="btn-demo-roll" class="dynamic">手指波浪</button>
+                <button id="btn-demo-thumb" class="dynamic">拇指独舞</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h2>手动控制 (Manual)</h2>
+            <div class="slider-item">
+                <label for="thumb">大拇指:</label>
+                <input type="range" id="thumb" min="20" max="160" value="20">
+                <span id="thumb-value" class="slider-value">20</span>
+            </div>
+            <div class="slider-item">
+                <label for="index">食指:</label>
+                <input type="range" id="index" min="20" max="160" value="20">
+                <span id="index-value" class="slider-value">20</span>
+            </div>
+            <div class="slider-item">
+                <label for="middle">中指:</label>
+                <input type="range" id="middle" min="20" max="160" value="20">
+                <span id="middle-value" class="slider-value">20</span>
+            </div>
+            <div class="slider-item">
+                <label for="ring">无名指:</label>
+                <input type="range" id="ring" min="20" max="160" value="20">
+                <span id="ring-value" class="slider-value">20</span>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h2>左右摆动 (Yaw)</h2>
+            <div class="slider-item">
+                <label for="thumb_yaw">大拇指:</label>
+                <input type="range" id="thumb_yaw" min="-100" max="100" value="0">
+                <span id="thumb_yaw-value" class="slider-value">0</span>
+            </div>
+            <div class="slider-item">
+                <label for="index_yaw">食指:</label>
+                <input type="range" id="index_yaw" min="-100" max="100" value="0">
+                <span id="index_yaw-value" class="slider-value">0</span>
+            </div>
+            <div class="slider-item">
+                <label for="middle_yaw">中指:</label>
+                <input type="range" id="middle_yaw" min="-100" max="100" value="0">
+                <span id="middle_yaw-value" class="slider-value">0</span>
+            </div>
+            <div class="slider-item">
+                <label for="ring_yaw">无名指:</label>
+                <input type="range" id="ring_yaw" min="-100" max="100" value="0">
+                <span id="ring_yaw-value" class="slider-value">0</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. DOM 元素 ---
+        const statusEl = document.getElementById('status');
+        const sliders = {
+            thumb: document.getElementById('thumb'), index: document.getElementById('index'),
+            middle: document.getElementById('middle'), ring: document.getElementById('ring'),
+            thumb_yaw: document.getElementById('thumb_yaw'), index_yaw: document.getElementById('index_yaw'),
+            middle_yaw: document.getElementById('middle_yaw'), ring_yaw: document.getElementById('ring_yaw')
+        };
+        const sliderValues = {
+            thumb: document.getElementById('thumb-value'), index: document.getElementById('index-value'),
+            middle: document.getElementById('middle-value'), ring: document.getElementById('ring-value'),
+            thumb_yaw: document.getElementById('thumb_yaw-value'), index_yaw: document.getElementById('index_yaw-value'),
+            middle_yaw: document.getElementById('middle_yaw-value'), ring_yaw: document.getElementById('ring_yaw-value')
+        };
+        let websocket = null;
+
+        // --- 2. WebSocket 连接 (无需改动) ---
+        function connect() {
+            websocket = new WebSocket("ws://localhost:8765");
+
+            websocket.onopen = () => {
+                console.log("WebSocket 已连接");
+                statusEl.textContent = "已连接";
+                statusEl.className = "status-connected";
+                setupEventListeners();
+                triggerAction("open_hand"); // 连接后自动张开手掌
+            };
+
+            websocket.onmessage = (event) => {
+                // (!!!) 这个函数现在至关重要
+                // 它会接收来自伺服器广播的演示关键帧
+                // console.log("收到伺服器状态: ", event.data);
+                const state = JSON.parse(event.data);
+                updateSlidersUI(state); // 自动更新滑块
+            };
+
+            websocket.onclose = () => {
+                console.log("WebSocket 已断开");
+                statusEl.textContent = "已断开 - 5秒后重试";
+                statusEl.className = "status-disconnected";
+                removeEventListeners();
+                setTimeout(connect, 5000); 
+            };
+            websocket.onerror = (error) => {
+                console.error("WebSocket 错误: ", error);
+                statusEl.textContent = "连接错误";
+                statusEl.className = "status-disconnected";
+            };
+        }
+
+        // --- 3. 数据发送 (无需改动) ---
+        function sendSliderData() {
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                const data = {};
+                for (const key in sliders) {
+                    data[key] = parseFloat(sliders[key].value);
+                    sliderValues[key].textContent = data[key].toFixed(0);
+                }
+                // 移动滑块会(在伺服器端)自动停止演示
+                websocket.send(JSON.stringify(data));
+            }
+        }
+
+        function triggerAction(actionName) {
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                console.log("发送动作: ", actionName);
+                // 发送动作会(在伺服器端)自动停止演示
+                websocket.send(JSON.stringify({ action: actionName }));
+            }
+        }
+        
+        // --- 4. UI 更新 (无需改动) ---
+        function updateSlidersUI(state) {
+            for (const key in state) {
+                if (sliders[key] && sliderValues[key]) {
+                    const value = parseFloat(state[key]);
+                    sliders[key].value = value;
+                    sliderValues[key].textContent = value.toFixed(0);
+                }
+            }
+        }
+
+        // --- 5. 事件监听 (核心改动) ---
+        const eventListeners = [];
+
+        function setupEventListeners() {
+            // 1. 为所有滑块添加 'input' 监听
+            for (const key in sliders) {
+                const listener = () => sendSliderData();
+                sliders[key].addEventListener('input', listener);
+                eventListeners.push({ element: sliders[key], type: 'input', listener: listener });
+            }
+            
+            // 2. (核心改动) 为所有按钮添加 'click' 监听
+            const buttonActions = {
+                // 静态
+                'btn-open': 'open_hand',
+                'btn-fist': 'fist',
+                // 动态
+                'btn-demo-beckon': 'demo_beckon',
+                'btn-demo-wave': 'demo_peace_wave',
+                'btn-demo-roll': 'demo_roll',
+                'btn-demo-thumb': 'demo_thumb_dance'
+            };
+
+            for (const id in buttonActions) {
+                const element = document.getElementById(id);
+                if (element) {
+                    const actionName = buttonActions[id];
+                    const listener = () => triggerAction(actionName);
+                    element.addEventListener('click', listener);
+                    eventListeners.push({ element: element, type: 'click', listener: listener });
+                }
+            }
+        }
+        
+        function removeEventListeners() {
+            eventListeners.forEach(item => {
+                item.element.removeEventListener(item.type, item.listener);
+            });
+            eventListeners.length = 0;
+        }
+
+        // --- 6. 启动 ---
+        document.addEventListener('DOMContentLoaded', connect);
+
+    </script>
+</body>
+</html>
