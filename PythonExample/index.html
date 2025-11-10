@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Hand Tracking & Finger Angle Detection</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #1a1a2e;
+            --primary-color: #0f3460;
+            --accent-color: #3f72af;
+            --highlight-color: #e94560;
+            --text-color: #dbe2ef;
+            --success-color: #28a745;
+            --error-color: #dc3545;
+        }
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            padding: 2rem;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-color);
+            margin-bottom: 0.5rem;
+            text-shadow: 0 0 10px rgba(63, 114, 175, 0.5);
+        }
+        p {
+            color: #a9b3c9;
+            margin-bottom: 2rem;
+            font-weight: 300;
+        }
+        .main-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2rem;
+            justify-content: center;
+            align-items: flex-start;
+            width: 100%;
+            max-width: 1600px;
+        }
+        #video-container {
+            position: relative;
+            flex-grow: 1;
+            max-width: 1280px;
+            aspect-ratio: 16 / 9;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 0 25px rgba(15, 52, 96, 0.8);
+            border: 2px solid var(--accent-color);
+            background-color: #000;
+        }
+        #webcam, #outputCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1);
+        }
+        #angle-output {
+            background: rgba(15, 52, 96, 0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--accent-color);
+            border-radius: 16px;
+            width: 320px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            flex-shrink: 0;
+        }
+        #angle-output h3 {
+            margin-top: 0;
+            color: var(--text-color);
+            border-bottom: 1px solid var(--accent-color);
+            padding-bottom: 1rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+            font-size: 1.25rem;
+            font-weight: 400;
+        }
+        .finger-angle {
+            margin-bottom: 1.25rem;
+        }
+        .finger-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+        }
+        .progress-bar-container {
+            width: 100%;
+            height: 12px;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-color), var(--highlight-color));
+            border-radius: 6px;
+            transition: width 0.1s linear;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 1.5em;
+            text-align: center;
+            padding: 20px;
+            background-color: rgba(0,0,0,0.7);
+            border-radius: 10px;
+        }
+        #socket-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            color: white;
+            font-size: 0.9em;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+        #socket-status::before {
+            content: '';
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            transition: background-color 0.3s ease;
+        }
+        #socket-status.connected {
+            background-color: rgba(40, 167, 69, 0.3);
+            border: 1px solid var(--success-color);
+        }
+        #socket-status.connected::before { background-color: var(--success-color); }
+        #socket-status.disconnected {
+            background-color: rgba(220, 53, 69, 0.3);
+            border: 1px solid var(--error-color);
+        }
+        #socket-status.disconnected::before { background-color: var(--error-color); }
+    </style>
+</head>
+<body>
+    <div id="socket-status" class="disconnected"><span>Disconnected</span></div>
+    <h1>Robotic Hand Visual Teleoperation</h1>
+    <p>Present your palm to the camera to begin real-time control.</p>
+    <div class="main-container">
+        <div id="video-container">
+            <video id="webcam" autoplay playsinline></video>
+            <canvas id="outputCanvas"></canvas>
+            <div id="loading-message" class="loading">Initializing...</div>
+        </div>
+        <div id="angle-output">
+            <h3>Finger Bending Status</h3>
+            <div class="finger-angle">
+                <div class="finger-label"><span>👍 Thumb</span><strong id="thumb-angle-value">--°</strong></div>
+                <div class="progress-bar-container"><div id="thumb-progress" class="progress-bar"></div></div>
+            </div>
+            <div class="finger-angle">
+                <div class="finger-label"><span>☝️ Index Finger</span><strong id="index-angle-value">--°</strong></div>
+                <div class="progress-bar-container"><div id="index-progress" class="progress-bar"></div></div>
+            </div>
+            <div class="finger-angle">
+                <div class="finger-label"><span>🖕 Middle Finger</span><strong id="middle-angle-value">--°</strong></div>
+                <div class="progress-bar-container"><div id="middle-progress" class="progress-bar"></div></div>
+            </div>
+            <div class="finger-angle">
+                <div class="finger-label"><span>💍 Ring Finger</span><strong id="ring-angle-value">--°</strong></div>
+                <div class="progress-bar-container"><div id="ring-progress" class="progress-bar"></div></div>
+            </div>
+            <div class="finger-angle">
+                <div class="finger-label"><span>- Pinky (Not Controlled)</span><strong id="pinky-angle-value">--°</strong></div>
+                <div class="progress-bar-container"><div id="pinky-progress" class="progress-bar"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { HandLandmarker, FilesetResolver, DrawingUtils } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest";
+
+        const video = document.getElementById("webcam");
+        const canvasElement = document.getElementById("outputCanvas");
+        const canvasCtx = canvasElement.getContext("2d");
+        const loadingMessage = document.getElementById("loading-message");
+        const socketStatus = document.querySelector("#socket-status span");
+
+        let handLandmarker;
+        let lastVideoTime = -1;
+        let socket;
+
+        function setupWebSocket() {
+            socket = new WebSocket('ws://127.0.0.1:8765');
+            const statusIndicator = document.getElementById("socket-status");
+            socket.onopen = () => {
+                console.log("Successfully connected to the local WebSocket server.");
+                socketStatus.textContent = "Connected";
+                statusIndicator.className = "connected";
+            };
+            socket.onclose = () => {
+                console.log("Connection to the WebSocket server has been closed.");
+                socketStatus.textContent = "Disconnected";
+                statusIndicator.className = "disconnected";
+            };
+            socket.onerror = () => {
+                console.error("WebSocket connection error.");
+                socketStatus.textContent = "Connection Error";
+                statusIndicator.className = "disconnected";
+            };
+        }
+
+        async function createHandLandmarker() {
+            try {
+                const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm");
+                handLandmarker = await HandLandmarker.createFromOptions(vision, {
+                    baseOptions: {
+                        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
+                        delegate: "GPU"
+                    },
+                    runningMode: "VIDEO",
+                    numHands: 1
+                });
+            } catch (error) {
+                throw new Error("Failed to load hand gesture model. Please check your network connection.");
+            }
+        }
+
+        async function setupWebcam() {
+            if (!navigator.mediaDevices?.getUserMedia) throw new Error("Browser does not support camera access.");
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+                video.srcObject = stream;
+                video.addEventListener("loadeddata", () => {
+                    loadingMessage.style.display = 'none';
+                    predictWebcam();
+                });
+            } catch (err) {
+                throw new Error("Failed to access camera, please check permissions.");
+            }
+        }
+
+        function predictWebcam() {
+            if (!handLandmarker) {
+                requestAnimationFrame(predictWebcam);
+                return;
+            }
+            const nowInMs = Date.now();
+            if (video.currentTime !== lastVideoTime) {
+                lastVideoTime = video.currentTime;
+                const results = handLandmarker.detectForVideo(video, nowInMs);
+                
+                canvasElement.width = video.videoWidth;
+                canvasElement.height = video.videoHeight;
+                canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+                if (results.landmarks?.length) {
+                    const drawingUtils = new DrawingUtils(canvasCtx);
+                    for (const landmarks of results.landmarks) {
+                        drawingUtils.drawConnectors(landmarks, HandLandmarker.HAND_CONNECTIONS, { color: "#00FF00", lineWidth: 5 });
+                        drawingUtils.drawLandmarks(landmarks, { color: "#FF0000", radius: 5 });
+                        calculateAndSendAngles(landmarks);
+                    }
+                }
+            }
+            requestAnimationFrame(predictWebcam);
+        }
+
+        function calculateAndSendAngles(landmarks) {
+            const getAngle = (p1, p2, p3) => {
+                const vec1 = { x: p1.x - p2.x, y: p1.y - p2.y, z: p1.z - p2.z };
+                const vec2 = { x: p3.x - p2.x, y: p3.y - p2.y, z: p3.z - p2.z };
+                const dot = vec1.x * vec2.x + vec1.y * vec2.y + vec1.z * vec2.z;
+                const mag1 = Math.sqrt(vec1.x**2 + vec1.y**2 + vec1.z**2);
+                const mag2 = Math.sqrt(vec2.x**2 + vec2.y**2 + vec2.z**2);
+                const cosTheta = dot / (mag1 * mag2);
+                return Math.round(Math.acos(Math.min(1, Math.max(-1, cosTheta))) * 180 / Math.PI);
+            };
+
+            const angles = {
+                index: 180 - getAngle(landmarks[0], landmarks[5], landmarks[8]),
+                middle: 180 - getAngle(landmarks[0], landmarks[9], landmarks[12]),
+                ring: 180 - getAngle(landmarks[0], landmarks[13], landmarks[16]),
+                thumb: 180 - getAngle(landmarks[2], landmarks[3], landmarks[4]),
+                pinky: 180 - getAngle(landmarks[0], landmarks[17], landmarks[20])
+            };
+
+            const updateFingerUI = (fingerName, angle) => {
+                const percentage = Math.max(0, Math.min(100, (angle / 180) * 100));
+                document.getElementById(`${fingerName}-angle-value`).textContent = `${angle}°`;
+                document.getElementById(`${fingerName}-progress`).style.width = `${percentage}%`;
+            };
+
+            Object.entries(angles).forEach(([key, value]) => updateFingerUI(key, value));
+
+            if (socket?.readyState === WebSocket.OPEN) {
+                const { pinky, ...dataToSend } = angles; // Exclude pinky finger
+                socket.send(JSON.stringify(dataToSend));
+            }
+        }
+
+        async function main() {
+            try {
+                loadingMessage.innerText = "Loading model...";
+                await createHandLandmarker();
+                loadingMessage.innerText = "Starting camera...";
+                await setupWebcam();
+                loadingMessage.innerText = "Connecting to server...";
+                setupWebSocket();
+            } catch (error) {
+                console.error("Initialization failed:", error);
+                loadingMessage.classList.add("error");
+                loadingMessage.innerText = `Initialization failed:\n${error.message}`;
+            }
+        }
+        main();
+    </script>
+</body>
+</html>
