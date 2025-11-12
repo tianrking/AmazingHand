@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AmazingHand 融合控制器 (V5 最终版) - 多语言版</title>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm/vision_bundle.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #f0f2f5;
+            --container-bg: #ffffff;
+            --text-color: #333;
+            --primary-color: #1d4ed8;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-700: #374151;
+            --red-100: #fee2e2;
+            --red-300: #fca5a5;
+            --red-400: #f87171;
+            --red-700: #b91c1c;
+            --green-50: #f0fdf4;
+            --green-600: #16a34a;
+            --blue-100: #dbeafe;
+            --blue-300: #93c5fd;
+            --blue-400: #60a5fa;
+            --blue-700: #1d4ed8;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        h1 { text-align: center; color: #1a1a1a; margin-top: 0; }
+        .main-layout {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        .video-column {
+            flex: 3; min-width: 500px; max-width: 900px;
+        }
+        .controls-column {
+            flex: 2; min-width: 400px; max-width: 600px;
+            display: flex; flex-direction: column; gap: 20px;
+        }
+        .container-box {
+            background-color: var(--container-bg);
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            padding: 20px 25px;
+        }
+        #video-container {
+            position: relative; width: 100%; aspect-ratio: 16 / 9;
+            border-radius: 10px; overflow: hidden;
+            border: 2px solid var(--gray-300); background-color: #000;
+        }
+        #webcam, #outputCanvas {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            transform: scaleX(-1); /* 镜像翻转 */
+        }
+        #loading-message {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: white; font-size: 1.2em; text-align: center;
+            padding: 15px 25px; background-color: rgba(0,0,0,0.7);
+            border-radius: 10px;
+        }
+        .header-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .title-container {
+            flex: 1;
+        }
+        .language-switcher {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .language-switcher button {
+            padding: 8px 16px;
+            border: 1px solid var(--gray-300);
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+        .language-switcher button:hover {
+            background: var(--gray-100);
+        }
+        .language-switcher button.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        .hybrid-control {
+            display: flex; align-items: center; justify-content: space-between;
+            background-color: var(--gray-100); padding: 15px 20px; border-radius: 8px;
+        }
+        .hybrid-control-label { font-size: 1.1em; font-weight: 600; }
+        .switch {
+            position: relative; display: inline-block;
+            width: 60px; height: 34px;
+        }
+        .switch input { display: none; }
+        .slider-toggle {
+            position: absolute; cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: var(--gray-300);
+            transition: .4s; border-radius: 34px;
+        }
+        .slider-toggle:before {
+            position: absolute; content: "";
+            height: 26px; width: 26px;
+            left: 4px; bottom: 4px;
+            background-color: white;
+            transition: .4s; border-radius: 50%;
+        }
+        input:checked + .slider-toggle { background-color: var(--primary-color); }
+        input:checked + .slider-toggle:before { transform: translateX(26px); }
+        #status {
+            text-align: center; font-size: 1.1em; font-weight: bold;
+            margin-bottom: 20px; padding: 10px; border-radius: 5px;
+        }
+        .status-connecting { color: #d97706; background-color: #fefce8; }
+        .status-connected { color: var(--green-600); background-color: var(--green-50); }
+        .status-disconnected { color: var(--red-700); background-color: var(--red-100); }
+        .control-group { margin-bottom: 0; }
+        .control-group h2 {
+            border-bottom: 2px solid var(--gray-200); padding-bottom: 5px;
+            margin-bottom: 15px; font-size: 1.25em; margin-top: 0;
+        }
+        .slider-item {
+            display: grid; grid-template-columns: 100px 1fr 50px;
+            align-items: center; margin-bottom: 10px;
+        }
+        .slider-item label { font-weight: 500; }
+        input[type="range"] { width: 100%; cursor: pointer; }
+        input[type="range"]:disabled {
+            background: var(--gray-100); cursor: not-allowed;
+        }
+        input[type="range"]:disabled::-webkit-slider-thumb { background: var(--gray-400); }
+        input[type="range"]:disabled::-moz-range-thumb { background: var(--gray-400); }
+        .slider-value { text-align: right; font-family: monospace; font-size: 1.1em; }
+        .gesture-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
+        .gesture-buttons button {
+            flex: 1 1 120px; padding: 10px 12px; font-size: 0.95em;
+            font-weight: 600; color: var(--gray-700); background-color: var(--gray-100);
+            border: 1px solid var(--gray-300); border-radius: 6px;
+            cursor: pointer; transition: all 0.1s ease-in-out;
+        }
+        .gesture-buttons button:hover { background-color: var(--gray-200); border-color: var(--gray-400); }
+        .gesture-buttons button:active { background-color: var(--gray-300); transform: scale(0.98); }
+        .gesture-buttons button.dynamic {
+            color: var(--blue-700); background-color: var(--blue-100); border-color: var(--blue-300);
+        }
+        .gesture-buttons button.dynamic:hover { background-color: #bfdbfe; border-color: var(--blue-400); }
+        .gesture-buttons button.stop {
+            flex: 1 1 100%; color: var(--red-700); background-color: var(--red-100);
+            border-color: var(--red-300); margin-bottom: 5px;
+        }
+        .gesture-buttons button.stop:hover { background-color: #fecaca; border-color: var(--red-400); }
+    </style>
+</head>
+<body>
+
+    <div class="main-layout">
+        <div class="video-column">
+            <div class="container-box">
+                <div class="header-section">
+                    <div class="title-container">
+                        <h1 id="page-title">AmazingHand 融合控制器</h1>
+                    </div>
+                    <div class="language-switcher">
+                        <button id="lang-zh" class="active">中文</button>
+                        <button id="lang-en">English</button>
+                    </div>
+                </div>
+                <div id="status" class="status-connecting" data-i18n="status.connecting">正在连接...</div>
+
+                <div class="hybrid-control">
+                    <span class="hybrid-control-label" data-i18n="hybrid.control">🖐️ 混合控制</span>
+                    <label class="switch">
+                        <input type="checkbox" id="hybrid-toggle">
+                        <span class="slider-toggle"></span>
+                    </label>
+                </div>
+            </div>
+            <div id="video-container" style="margin-top: 20px;">
+                <video id="webcam" autoplay playsinline></video>
+                <canvas id="outputCanvas"></canvas>
+                <div id="loading-message" data-i18n="loading.initializing">正在初始化...</div>
+            </div>
+        </div>
+        <div class="controls-column">
+            <div class="container-box control-group">
+                <h2 data-i18n="static.poses">静态姿态</h2>
+                <div class="gesture-buttons">
+                    <button id="btn-open" data-i18n="pose.open">手掌张开 (Open)</button>
+                    <button id="btn-fist" data-i18n="pose.fist">握拳 (Fist)</button>
+                </div>
+            </div>
+            <div class="container-box control-group">
+                <h2 data-i18n="dynamic.demo">动态演示 (Demo)</h2>
+                <div class="gesture-buttons">
+                    <button id="btn-demo-stop" class="stop" data-i18n="demo.stop">■ 停止所有动作</button>
+                    <button id="btn-demo-beckon" class="dynamic" data-i18n="demo.beckon">食指勾引</button>
+                    <button id="btn-demo-wave" class="dynamic" data-i18n="demo.wave">Peace 挥手</button>
+                    <button id="btn-demo-roll" class="dynamic" data-i18n="demo.roll">手指波浪</button>
+                    <button id="btn-demo-thumb" class="dynamic" data-i18n="demo.thumb">拇指独舞</button>
+                </div>
+            </div>
+            <div class="container-box control-group">
+                <h2 data-i18n="manual.bend">手动控制 - 弯曲 (Bend)</h2>
+                <div class="slider-item">
+                    <label for="thumb" data-i18n="finger.thumb">大拇指:</label>
+                    <input type="range" id="thumb" min="20" max="160" value="20">
+                    <span id="thumb-value" class="slider-value">20</span>
+                </div>
+                <div class="slider-item">
+                    <label for="index" data-i18n="finger.index">食指:</label>
+                    <input type="range" id="index" min="20" max="160" value="20">
+                    <span id="index-value" class="slider-value">20</span>
+                </div>
+                <div class="slider-item">
+                    <label for="middle" data-i18n="finger.middle">中指:</label>
+                    <input type="range" id="middle" min="20" max="160" value="20">
+                    <span id="middle-value" class="slider-value">20</span>
+                </div>
+                <div class="slider-item">
+                    <label for="ring" data-i18n="finger.ring">无名指:</label>
+                    <input type="range" id="ring" min="20" max="160" value="20">
+                    <span id="ring-value" class="slider-value">20</span>
+                </div>
+            </div>
+            <div class="container-box control-group">
+                <h2 data-i18n="manual.yaw">手动控制 - 左右摆动 (Yaw)</h2>
+                <div class="slider-item">
+                    <label for="thumb_yaw" data-i18n="finger.thumb">大拇指:</label>
+                    <input type="range" id="thumb_yaw" min="-100" max="100" value="0">
+                    <span id="thumb_yaw-value" class="slider-value">0</span>
+                </div>
+                <div class="slider-item">
+                    <label for="index_yaw" data-i18n="finger.index">食指:</label>
+                    <input type="range" id="index_yaw" min="-100" max="100" value="0">
+                    <span id="index_yaw-value" class="slider-value">0</span>
+                </div>
+                <div class="slider-item">
+                    <label for="middle_yaw" data-i18n="finger.middle">中指:</label>
+                    <input type="range" id="middle_yaw" min="-100" max="100" value="0">
+                    <span id="middle_yaw-value" class="slider-value">0</span>
+                </div>
+                <div class="slider-item">
+                    <label for="ring_yaw" data-i18n="finger.ring">无名指:</label>
+                    <input type="range" id="ring_yaw" min="-100" max="100" value="0">
+                    <span id="ring_yaw-value" class="slider-value">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // --- 1. 导入 MediaPipe ---
+        import { HandLandmarker, FilesetResolver, DrawingUtils } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest";
+
+        // --- 2. 国际化支持 ---
+        const i18n = {
+            zh: {
+                title: "AmazingHand 融合控制器",
+                status: {
+                    connecting: "正在连接...",
+                    connected: "已连接",
+                    disconnected: "已断开 - 5秒后重试",
+                    error: "连接错误"
+                },
+                loading: {
+                    initializing: "正在初始化...",
+                    connecting: "连接到伺服器...",
+                    loadingModel: "加载手势模型...",
+                    startingCamera: "启动摄像头...",
+                    ready: "准备就绪",
+                    initFailed: "初始化失败"
+                },
+                hybrid: {
+                    control: "🖐️ 混合控制"
+                },
+                static: {
+                    poses: "静态姿态"
+                },
+                dynamic: {
+                    demo: "动态演示 (Demo)"
+                },
+                manual: {
+                    bend: "手动控制 - 弯曲 (Bend)",
+                    yaw: "手动控制 - 左右摆动 (Yaw)"
+                },
+                finger: {
+                    thumb: "大拇指:",
+                    index: "食指:",
+                    middle: "中指:",
+                    ring: "无名指:"
+                },
+                pose: {
+                    open: "手掌张开 (Open)",
+                    fist: "握拳 (Fist)"
+                },
+                demo: {
+                    stop: "■ 停止所有动作",
+                    beckon: "食指勾引",
+                    wave: "Peace 挥手",
+                    roll: "手指波浪",
+                    thumb: "拇指独舞"
+                }
+            },
+            en: {
+                title: "AmazingHand Controller",
+                status: {
+                    connecting: "Connecting...",
+                    connected: "Connected",
+                    disconnected: "Disconnected - Retry in 5s",
+                    error: "Connection Error"
+                },
+                loading: {
+                    initializing: "Initializing...",
+                    connecting: "Connecting to server...",
+                    loadingModel: "Loading hand model...",
+                    startingCamera: "Starting camera...",
+                    ready: "Ready",
+                    initFailed: "Initialization Failed"
+                },
+                hybrid: {
+                    control: "🖐️ Hybrid Control"
+                },
+                static: {
+                    poses: "Static Poses"
+                },
+                dynamic: {
+                    demo: "Dynamic Demo"
+                },
+                manual: {
+                    bend: "Manual Control - Bend",
+                    yaw: "Manual Control - Yaw"
+                },
+                finger: {
+                    thumb: "Thumb:",
+                    index: "Index:",
+                    middle: "Middle:",
+                    ring: "Ring:"
+                },
+                pose: {
+                    open: "Open Hand",
+                    fist: "Fist"
+                },
+                demo: {
+                    stop: "■ Stop All Actions",
+                    beckon: "Index Beckon",
+                    wave: "Peace Wave",
+                    roll: "Finger Roll",
+                    thumb: "Thumb Dance"
+                }
+            }
+        };
+
+        let currentLang = 'zh';
+
+        // --- 3. 全局状态机 (无循环ID) ---
+        let currentControlMode = 'manual';
+        let isDemoActive = false;
+        let handLandmarker;
+        let drawingUtils;
+        let lastVideoTime = -1;
+        let websocket = null;
+
+        // --- 4. DOM 元素 (无改动) ---
+        const statusEl = document.getElementById('status');
+        const hybridToggle = document.getElementById('hybrid-toggle');
+        const video = document.getElementById("webcam");
+        const canvasElement = document.getElementById("outputCanvas");
+        const canvasCtx = canvasElement.getContext("2d");
+        const loadingMessage = document.getElementById("loading-message");
+        const sliders = {
+            thumb: document.getElementById('thumb'), index: document.getElementById('index'),
+            middle: document.getElementById('middle'), ring: document.getElementById('ring'),
+            thumb_yaw: document.getElementById('thumb_yaw'), index_yaw: document.getElementById('index_yaw'),
+            middle_yaw: document.getElementById('middle_yaw'), ring_yaw: document.getElementById('ring_yaw')
+        };
+        const sliderValues = {
+            thumb: document.getElementById('thumb-value'), index: document.getElementById('index-value'),
+            middle: document.getElementById('middle-value'), ring: document.getElementById('ring-value'),
+            thumb_yaw: document.getElementById('thumb_yaw-value'), index_yaw: document.getElementById('index_yaw-value'),
+            middle_yaw: document.getElementById('middle_yaw-value'), ring_yaw: document.getElementById('ring_yaw-value')
+        };
+
+        // --- 5. 国际化功能 ---
+        function updateLanguage(lang) {
+            currentLang = lang;
+
+            // 更新页面标题
+            document.title = i18n[lang].title + " (V5 Final) - i18n";
+            document.getElementById('page-title').textContent = i18n[lang].title;
+
+            // 更新HTML语言属性
+            document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+
+            // 更新所有带data-i18n属性的元素
+            document.querySelectorAll('[data-i18n]').forEach(element => {
+                const key = element.getAttribute('data-i18n');
+                const keys = key.split('.');
+                let value = i18n[lang];
+
+                for (const k of keys) {
+                    value = value[k];
+                    if (value === undefined) break;
+                }
+
+                if (value !== undefined) {
+                    if (element.tagName === 'INPUT' && element.type === 'text') {
+                        element.placeholder = value;
+                    } else {
+                        element.textContent = value;
+                    }
+                }
+            });
+
+            // 更新语言按钮状态
+            document.getElementById('lang-zh').classList.toggle('active', lang === 'zh');
+            document.getElementById('lang-en').classList.toggle('active', lang === 'en');
+
+            // 保存语言偏好
+            localStorage.setItem('amazinghand-lang', lang);
+        }
+
+        // --- 6. WebSocket (无改动) ---
+        function connectWebSocket() {
+            websocket = new WebSocket("ws://localhost:8765");
+            websocket.onopen = () => {
+                console.log("WebSocket 已连接");
+                statusEl.textContent = i18n[currentLang].status.connected;
+                statusEl.className = "status-connected";
+                triggerAction("open_hand");
+            };
+            websocket.onmessage = (event) => {
+                // 来自伺服器的演示广播
+                const state = JSON.parse(event.data);
+                updateSlidersUI(state);
+            };
+            websocket.onclose = () => {
+                console.log("WebSocket 已断开");
+                statusEl.textContent = i18n[currentLang].status.disconnected;
+                statusEl.className = "status-disconnected";
+                setTimeout(connectWebSocket, 5000);
+            };
+            websocket.onerror = (error) => {
+                console.error("WebSocket 错误: ", error);
+                statusEl.textContent = i18n[currentLang].status.error;
+                statusEl.className = "status-disconnected";
+            };
+        }
+
+        /** (核心改动) 发送动作命令 */
+        function triggerAction(actionName) {
+            if (!websocket || websocket.readyState !== WebSocket.OPEN) return;
+            console.log("发送动作: ", actionName);
+
+            // 演示开始/停止逻辑
+            isDemoActive = actionName.startsWith('demo_');
+
+            websocket.send(JSON.stringify({ action: actionName }));
+        }
+
+        // --- 7. MediaPipe (无改动) ---
+        async function createHandLandmarker() {
+            const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm");
+            handLandmarker = await HandLandmarker.createFromOptions(vision, {
+                baseOptions: {
+                    modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
+                    delegate: "GPU"
+                },
+                runningMode: "VIDEO",
+                numHands: 1
+            });
+            drawingUtils = new DrawingUtils(canvasCtx);
+        }
+
+        async function setupWebcam() {
+            if (!navigator.mediaDevices?.getUserMedia) throw new Error("浏览器不支持摄像头访问。");
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+            video.srcObject = stream;
+            video.addEventListener("loadeddata", () => {
+                loadingMessage.style.display = 'none';
+                predictWebcam();
+            });
+        }
+
+        /** (核心改动) MediaPipe 循环 (现在发送数据) */
+        function predictWebcam() {
+            if (!handLandmarker) {
+                requestAnimationFrame(predictWebcam);
+                return;
+            }
+            const nowInMs = Date.now();
+            if (video.currentTime !== lastVideoTime) {
+                lastVideoTime = video.currentTime;
+                const results = handLandmarker.detectForVideo(video, nowInMs);
+                canvasElement.width = video.videoWidth;
+                canvasElement.height = video.videoHeight;
+                canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+                if (results.landmarks?.length) {
+                    for (const landmarks of results.landmarks) {
+                        drawingUtils.drawConnectors(landmarks, HandLandmarker.HAND_CONNECTIONS, { color: "#00FF00", lineWidth: 5 });
+                        drawingUtils.drawLandmarks(landmarks, { color: "#FF0000", radius: 5 });
+
+                        // (!!!) MediaPipe 循环只在混合模式下发送数据
+                        if (currentControlMode === 'hybrid' && !isDemoActive) {
+                            processAndSendHybridData(landmarks);
+                        }
+                    }
+                }
+            }
+            requestAnimationFrame(predictWebcam);
+        }
+
+        // --- 8. 融合逻辑与数据处理 (核心改动) ---
+
+        /** (新) 仅用于手动模式的数据发送 */
+        function sendManualSliderData() {
+            if (isDemoActive) return; // 演示时, 手动滑块不发送
+            if (!websocket || websocket.readyState !== WebSocket.OPEN) return;
+
+            const currentState = {
+                thumb: parseFloat(sliders.thumb.value),
+                index: parseFloat(sliders.index.value),
+                middle: parseFloat(sliders.middle.value),
+                ring: parseFloat(sliders.ring.value),
+                thumb_yaw: parseFloat(sliders.thumb_yaw.value),
+                index_yaw: parseFloat(sliders.index_yaw.value),
+                middle_yaw: parseFloat(sliders.middle_yaw.value),
+                ring_yaw: parseFloat(sliders.ring_yaw.value)
+            };
+
+            // console.log("Manual Send:", currentState);
+            websocket.send(JSON.stringify(currentState));
+        }
+
+        /** (新) 用于混合模式Yaw滑块的数据发送 */
+        function sendHybridYawData() {
+            if (isDemoActive) return; // 演示时, 滑块不发送
+            if (!websocket || websocket.readyState !== WebSocket.OPEN) return;
+
+            // 在混合模式下，获取当前手部的bend值
+            const currentThumb = parseFloat(sliders.thumb.value);
+            const currentIndex = parseFloat(sliders.index.value);
+            const currentMiddle = parseFloat(sliders.middle.value);
+            const currentRing = parseFloat(sliders.ring.value);
+
+            const currentState = {
+                thumb: currentThumb,
+                index: currentIndex,
+                middle: currentMiddle,
+                ring: currentRing,
+                thumb_yaw: parseFloat(sliders.thumb_yaw.value),
+                index_yaw: parseFloat(sliders.index_yaw.value),
+                middle_yaw: parseFloat(sliders.middle_yaw.value),
+                ring_yaw: parseFloat(sliders.ring_yaw.value)
+            };
+
+            // console.log("Hybrid Yaw Send:", currentState);
+            websocket.send(JSON.stringify(currentState));
+        }
+
+        // --- 角度计算 (来自您的旧代码) ---
+        function getAngle(p1, p2, p3) {
+            const vec1 = { x: p1.x - p2.x, y: p1.y - p2.y, z: p1.z - p2.z };
+            const vec2 = { x: p3.x - p2.x, y: p3.y - p2.y, z: p3.z - p2.z };
+            const dot = vec1.x * vec2.x + vec1.y * vec2.y + vec1.z * vec2.z;
+            const mag1 = Math.sqrt(vec1.x**2 + vec1.y**2 + vec1.z**2);
+            const mag2 = Math.sqrt(vec2.x**2 + vec2.y**2 + vec2.z**2);
+            const cosTheta = dot / (mag1 * mag2);
+            return Math.acos(Math.min(1, Math.max(-1, cosTheta))) * 180 / Math.PI;
+        }
+
+        function mapValue(x, in_min, in_max, out_min, out_max) {
+            x = Math.max(in_min, Math.min(x, in_max));
+            return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+        }
+
+        /** (核心改动) MediaPipe 混合数据处理与发送 */
+        function processAndSendHybridData(landmarks) {
+            // 1. 计算 "Bend" 值 (使用您旧的 180-getAngle 逻辑)
+            //    这将产生一个 0-180 范围的值
+            const bend_angles_raw = {
+                thumb:  180 - getAngle(landmarks[2], landmarks[3], landmarks[4]),
+                index:  180 - getAngle(landmarks[0], landmarks[5], landmarks[8]),
+                middle: 180 - getAngle(landmarks[0], landmarks[9], landmarks[12]),
+                ring:   180 - getAngle(landmarks[0], landmarks[13], landmarks[16])
+            };
+
+            // 2. 读取 "Yaw" 值 (来自您可以手动拖动的滑块)
+            const yaw_values = {
+                thumb_yaw: parseFloat(sliders.thumb_yaw.value),
+                index_yaw: parseFloat(sliders.index_yaw.value),
+                middle_yaw: parseFloat(sliders.middle_yaw.value),
+                ring_yaw: parseFloat(sliders.ring_yaw.value)
+            };
+
+            // 3. (!!!) 创建完整的 8 键 JSON 包
+            //    (后端期望 20-160 的 Bend, 您的 0-180 值会被后端自动裁剪)
+            const dataToSend = {
+                thumb: bend_angles_raw.thumb,
+                index: bend_angles_raw.index,
+                middle: bend_angles_raw.middle,
+                ring: bend_angles_raw.ring,
+
+                thumb_yaw: yaw_values.thumb_yaw,
+                index_yaw: yaw_values.index_yaw,
+                middle_yaw: yaw_values.middle_yaw,
+                ring_yaw: yaw_values.ring_yaw
+            };
+
+            // 4. (!!!) 立即发送
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                // console.log("Hybrid Send:", dataToSend);
+                websocket.send(JSON.stringify(dataToSend));
+            }
+
+            // 5. 更新UI (将0-180 映射到 20-160 以便滑块显示正确)
+            sliders.thumb.value = mapValue(bend_angles_raw.thumb, 0, 180, 20, 160);
+            sliders.index.value = mapValue(bend_angles_raw.index, 0, 180, 20, 160);
+            sliders.middle.value = mapValue(bend_angles_raw.middle, 0, 180, 20, 160);
+            sliders.ring.value = mapValue(bend_angles_raw.ring, 0, 180, 20, 160);
+            updateBendSliderValues(); // 更新文本
+        }
+
+        // --- 9. UI 事件监听 (核心改动) ---
+        const eventListeners = [];
+
+        function setupEventListeners() {
+            // 语言切换按钮
+            document.getElementById('lang-zh').addEventListener('click', () => updateLanguage('zh'));
+            document.getElementById('lang-en').addEventListener('click', () => updateLanguage('en'));
+
+            // 1. (核心改动) 滑块 'input' 监听 (手动模式和混合模式的Yaw滑块都需要发送)
+            for (const key in sliders) {
+                const listener = () => {
+                    isDemoActive = false; // 手动控制会立即停止演示
+
+                    // 更新滑块旁的数字
+                    sliderValues[key].textContent = parseFloat(sliders[key].value).toFixed(0);
+
+                    // (!!!) 在手动模式下发送所有滑块数据
+                    if (currentControlMode === 'manual') {
+                        sendManualSliderData(); // 立即发送8个手动值
+                    }
+                    // 在混合模式下，Yaw滑块变化时也需要发送数据
+                    else if (currentControlMode === 'hybrid' && key.endsWith('_yaw')) {
+                        sendHybridYawData(); // 发送混合模式的Yaw数据
+                    }
+                };
+                sliders[key].addEventListener('input', listener);
+                eventListeners.push({ element: sliders[key], type: 'input', listener: listener });
+            }
+
+            // 2. 按钮 'click' 监听 (无改动)
+            const buttonActions = {
+                'btn-open': 'open_hand', 'btn-fist': 'fist',
+                'btn-demo-stop': 'stop_demo',
+                'btn-demo-beckon': 'demo_beckon', 'btn-demo-wave': 'demo_peace_wave',
+                'btn-demo-roll': 'demo_roll', 'btn-demo-thumb': 'demo_thumb_dance'
+            };
+            for (const id in buttonActions) {
+                const element = document.getElementById(id);
+                if (element) {
+                    const actionName = buttonActions[id];
+                    const listener = () => triggerAction(actionName);
+                    element.addEventListener('click', listener);
+                    eventListeners.push({ element: element, type: 'click', listener: listener });
+                }
+            }
+
+            // 3. (核心改动) 混合控制开关 监听 (逻辑同 v1/final)
+            hybridToggle.addEventListener('change', (e) => {
+                isDemoActive = false; // 切换模式时停止演示
+
+                if (e.target.checked) {
+                    // --- 混合模式: MediaPipe (Bend) + 手动 (Yaw) ---
+                    console.log("切换到: 混合控制模式");
+                    currentControlMode = 'hybrid';
+
+                    sliders.thumb.disabled = true;
+                    sliders.index.disabled = true;
+                    sliders.middle.disabled = true;
+                    sliders.ring.disabled = true;
+
+                    sliders.thumb_yaw.disabled = false;
+                    sliders.index_yaw.disabled = false;
+                    sliders.middle_yaw.disabled = false;
+                    sliders.ring_yaw.disabled = false;
+
+                } else {
+                    // --- 手动模式: 全部可用 ---
+                    console.log("切换到: 手动模式");
+                    currentControlMode = 'manual';
+
+                    for (const key in sliders) { sliders[key].disabled = false; }
+                }
+            });
+        }
+
+        function removeEventListeners() {
+            eventListeners.forEach(item => {
+                item.element.removeEventListener(item.type, item.listener);
+            });
+            eventListeners.length = 0;
+        }
+
+        // --- 10. UI 更新 (无改动) ---
+        function updateSlidersUI(state) {
+            // 伺服器发来的状态 (用于演示) 总是优先的
+            if(state.thumb) sliders.thumb.value = state.thumb;
+            if(state.index) sliders.index.value = state.index;
+            if(state.middle) sliders.middle.value = state.middle;
+            if(state.ring) sliders.ring.value = state.ring;
+
+            if(state.thumb_yaw) sliders.thumb_yaw.value = state.thumb_yaw;
+            if(state.index_yaw) sliders.index_yaw.value = state.index_yaw;
+            if(state.middle_yaw) sliders.middle_yaw.value = state.middle_yaw;
+            if(state.ring_yaw) sliders.ring_yaw.value = state.ring_yaw;
+            updateAllSliderValues();
+        }
+
+        function updateAllSliderValues() {
+            for (const key in sliders) {
+                sliderValues[key].textContent = parseFloat(sliders[key].value).toFixed(0);
+            }
+        }
+
+        function updateBendSliderValues() {
+            sliderValues.thumb.textContent = parseFloat(sliders.thumb.value).toFixed(0);
+            sliderValues.index.textContent = parseFloat(sliders.index.value).toFixed(0);
+            sliderValues.middle.textContent = parseFloat(sliders.middle.value).toFixed(0);
+            sliderValues.ring.textContent = parseFloat(sliders.ring.value).toFixed(0);
+        }
+
+        // --- 11. 启动 (无改动) ---
+        async function main() {
+            try {
+                // 初始化语言设置
+                const savedLang = localStorage.getItem('amazinghand-lang') || 'zh';
+                updateLanguage(savedLang);
+
+                setupEventListeners();
+
+                loadingMessage.innerText = i18n[currentLang].loading.connecting;
+                connectWebSocket();
+
+                loadingMessage.innerText = i18n[currentLang].loading.loadingModel;
+                await createHandLandmarker();
+
+                loadingMessage.innerText = i18n[currentLang].loading.startingCamera;
+                await setupWebcam();
+
+                loadingMessage.innerText = i18n[currentLang].loading.ready;
+            } catch (error) {
+                console.error("初始化失败:", error);
+                loadingMessage.style.color = "var(--red-400)";
+                loadingMessage.innerText = i18n[currentLang].loading.initFailed + ":\n" + error.message;
+            }
+        }
+
+        // 启动应用
+        main();
+
+    </script>
+</body>
+</html>
